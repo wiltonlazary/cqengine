@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/npgall/cqengine.svg?branch=master)](https://travis-ci.org/npgall/cqengine)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.googlecode.cqengine/cqengine/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.googlecode.cqengine%22%20AND%20a%3Acqengine)
+
+
 # CQEngine - Collection Query Engine #
 
 CQEngine – Collection Query Engine – is a high-performance Java collection which can be searched with SQL-like queries, with _extremely_ low latency.
@@ -616,7 +620,7 @@ For non-Maven projects, a version built with [maven-shade-plugin](http://maven.a
 
 ## Project Status ##
 
-  * CQEngine 2.9.2 is the current release as of writing (November 2016), and is in Maven central
+  * CQEngine 2.9.3 is the current release as of writing (March 2017), and is in Maven central
   * A [ReleaseNotes](documentation/ReleaseNotes.md) page has been added to document changes between releases
   * API / JavaDocs are available [here](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/index.html)
 
