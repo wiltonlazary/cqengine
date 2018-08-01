@@ -285,7 +285,7 @@ In particular, note that `SimpleAttribute` and `MultiValueAttribute` do not perf
 
 As a rule of thumb, if you get a `NullPointerException`, it's probably because you used the wrong type of attribute. The problem will usually go away if you switch your code to use a nullable attribute instead. If you don't know if your data may contain null values, just use the nullable attributes. They contain the logic to check for and handle null values automatically.
 
-The nullable attributes also allow CQEngine to work with object inheritance, where some objects in the collection have certain optional fields (e.g. in subclasses) while others might not.
+The nullable attributes also allow CQEngine to work with [object inheritance](https://github.com/npgall/cqengine/tree/master/code/src/test/java/com/googlecode/cqengine/examples/inheritance), where some objects in the collection have certain optional fields (e.g. in subclasses) while others might not.
 
 #### Creating queries dynamically ####
 
@@ -511,7 +511,7 @@ ResultSet<Car> results = cars.retrieve(query, queryOptions(orderBy(descending(Ca
 ResultSet<Car> results = cars.retrieve(query, queryOptions(orderBy(descending(Car.PRICE), ascending(Car.DOORS))));
 ```
 
-Note that ordering results as above uses the default _materialize_ ordering strategy. This is relatively expensive, dependent on the number of objects matching the query, and can cause latency in accessing the first object. It requires all results to be materialized into a sorted set up-front _before iteration can begin_. However ordering results in this way also implicitly eliminates duplicates.
+Note that ordering results as above uses the default _materialize_ ordering strategy. This is relatively expensive, dependent on the number of objects matching the query, and can cause latency in accessing the first object. It requires all results to be materialized into a sorted set up-front _before iteration can begin_.
 
 ### Index-accelerated ordering ###
 
@@ -607,6 +607,12 @@ For non-Maven projects, a version built with [maven-shade-plugin](http://maven.a
 
 ---
 
+## Using CQEngine in Scala, Kotlin, or other JVM languages ##
+
+CQEngine should generally be compatible with other JVM languages besides Java too, however it can be necessary to apply a few tricks to make it work. See [OtherJVMLanguages.md](documentation/OtherJVMLanguages.md) for some tips.
+
+---
+
 
 ## Related Projects ##
 
@@ -620,7 +626,7 @@ For non-Maven projects, a version built with [maven-shade-plugin](http://maven.a
 
 ## Project Status ##
 
-  * CQEngine 2.9.3 is the current release as of writing (March 2017), and is in Maven central
+  * CQEngine 2.12.4 is the current release as of writing (November 2017), and is in Maven central
   * A [ReleaseNotes](documentation/ReleaseNotes.md) page has been added to document changes between releases
   * API / JavaDocs are available [here](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/index.html)
 

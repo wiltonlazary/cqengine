@@ -15,27 +15,23 @@
  */
 package com.googlecode.cqengine.index.sqlite;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
 import com.googlecode.cqengine.attribute.Attribute;
 import com.googlecode.cqengine.attribute.SimpleAttribute;
 import com.googlecode.cqengine.index.Index;
-import com.googlecode.cqengine.index.support.*;
+import com.googlecode.cqengine.persistence.support.serialization.PersistenceConfig;
+import com.googlecode.cqengine.persistence.support.serialization.PojoSerializer;
+import com.googlecode.cqengine.index.support.CloseableIterable;
+import com.googlecode.cqengine.index.support.KeyStatistics;
+import com.googlecode.cqengine.index.support.KeyValue;
+import com.googlecode.cqengine.index.support.SortedKeyStatisticsAttributeIndex;
 import com.googlecode.cqengine.index.support.indextype.NonHeapTypeIndex;
 import com.googlecode.cqengine.persistence.support.ObjectSet;
 import com.googlecode.cqengine.persistence.support.ObjectStore;
 import com.googlecode.cqengine.query.Query;
 import com.googlecode.cqengine.query.option.QueryOptions;
 import com.googlecode.cqengine.resultset.ResultSet;
-import de.javakaffee.kryoserializers.ArraysAsListSerializer;
-import de.javakaffee.kryoserializers.SynchronizedCollectionsSerializer;
-import de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer;
-import org.objenesis.strategy.StdInstantiatorStrategy;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.*;
+import java.lang.reflect.Constructor;
 
 import static com.googlecode.cqengine.query.QueryFactory.equal;
 import static com.googlecode.cqengine.query.QueryFactory.noQueryOptions;
@@ -55,6 +51,7 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
     final Class<O> objectType;
     final SimpleAttribute<O, A> primaryKeyAttribute;
     final SimpleAttribute<A, O> foreignKeyAttribute;
+    final PojoSerializer<O> pojoSerializer;
 
     public SQLiteIdentityIndex(final SimpleAttribute<O, A> primaryKeyAttribute) {
         this.sqLiteIndex = new SQLiteIndex<A, O, byte[]>(
@@ -71,6 +68,7 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
         this.objectType = primaryKeyAttribute.getObjectType();
         this.primaryKeyAttribute = primaryKeyAttribute;
         this.foreignKeyAttribute = new ForeignKeyAttribute();
+        this.pojoSerializer = createSerializer(objectType);
     }
 
     public SimpleAttribute<A, O> getForeignKeyAttribute() {
@@ -129,23 +127,6 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
     public void init(ObjectStore<O> objectStore, QueryOptions queryOptions) {
         sqLiteIndex.init(objectStore, queryOptions);
     }
-
-
-    final ThreadLocal<Kryo> kryoCache = new ThreadLocal<Kryo>() {
-        @Override
-        protected Kryo initialValue() {
-            Kryo kryo = new Kryo();
-            // Instantiate serialized objects via a no-arg constructor when possible, falling back to Objenesis...
-            kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
-            // Register the object which this index will persist...
-            kryo.register(objectType);
-            // Register additional serializers which are not built-in to Kryo 3.0...
-            kryo.register(Arrays.asList().getClass(), new ArraysAsListSerializer());
-            UnmodifiableCollectionsSerializer.registerSerializers(kryo);
-            SynchronizedCollectionsSerializer.registerSerializers(kryo);
-            return kryo;
-        }
-    };
 
     @Override
     public CloseableIterable<A> getDistinctKeys(QueryOptions queryOptions) {
@@ -226,6 +207,27 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
         return result;
     }
 
+    @SuppressWarnings("unchecked")
+    static <O> PojoSerializer<O> createSerializer(Class<O> objectType) {
+        Class<? extends PojoSerializer> serializerClass = null;
+        try {
+            // Read the configured serializer from the @PersistenceConfig annotation...
+            PersistenceConfig persistenceConfig = objectType.getAnnotation(PersistenceConfig.class);
+            if (persistenceConfig == null) {
+                persistenceConfig = PersistenceConfig.DEFAULT_CONFIG;
+            }
+            serializerClass = persistenceConfig.serializer();
+
+            // Instantiate the serializer, supplying the parameters to its (objectType, persistenceConfig) constructor...
+            Constructor constructor = serializerClass.getConstructor(Class.class, PersistenceConfig.class);
+            Object serializerInstance = constructor.newInstance(objectType, persistenceConfig);
+            return (PojoSerializer<O>) serializerInstance;
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Failed to instantiate PojoSerializer: " + serializerClass, e);
+        }
+    }
+
     class SerializingAttribute extends SimpleAttribute<O, byte[]> {
 
         public SerializingAttribute(Class<O> objectType, Class<byte[]> attributeType) {
@@ -238,15 +240,10 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
                 throw new NullPointerException("Object was null");
             }
             try {
-                Kryo kryo = kryoCache.get();
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                Output output = new Output(baos);
-                kryo.writeObject(output, object);
-                output.close();
-                return baos.toByteArray();
+                return pojoSerializer.serialize(object);
             }
             catch (Exception e) {
-                throw new IllegalStateException("Failed to serialize object for saving in index, object type: " + objectType, e);
+                throw new IllegalStateException("Failed to serialize object, object type: " + objectType, e);
             }
         }
     }
@@ -259,16 +256,7 @@ public class SQLiteIdentityIndex<A extends Comparable<A>, O> implements Identity
 
         @Override
         public O getValue(byte[] bytes, QueryOptions queryOptions) {
-            try {
-                Kryo kryo = kryoCache.get();
-                Input input = new Input(new ByteArrayInputStream(bytes));
-                O object = kryo.readObject(input, objectType);
-                input.close();
-                return object;
-            }
-            catch (Exception e) {
-                throw new IllegalStateException("Failed to deserialize object from index, object type: " + objectType, e);
-            }
+            return pojoSerializer.deserialize(bytes);
         }
     }
 

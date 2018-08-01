@@ -1,5 +1,38 @@
 # CQEngine Release Notes #
 
+## Version 2.12.4 - 2017-11-24 ###
+  * Performance improvement. Improved handling of Or queries when one clause is None (Thanks to stevebarham for the suggestion and investigation; fixes #167).
+  
+### Version 2.12.3 - 2017-11-20 ###
+  * Updated the configuration of maven-shade-plugin, to fix an issue which can prevent `AttributeBytecodeGenerator` from working correctly when CQEngine is run from the shaded jar.
+  
+### Version 2.12.2 - 2017-10-29 ###
+  * Added support to auto-generate attributes from getter methods in POJOs. Previously it was only possible to auto-generate attributes for fields in POJOs. This new feature is supported by both `AttributeSourceGenerator` and `AttributeBytecodeGenerator`.
+  
+### Version 2.12.1 - 2017-07-20 ###
+  * Added workaround for JDK `ConcurrentHashMap` performance bottleneck [JDK-8160751](https://bugs.openjdk.java.net/browse/JDK-8160751), with thanks to zenzondon for reporting it (issue 154)
+  * This may improve performance of `IndexedCollection.update()` and `removeAll()` methods when using on-heap persistence and CQEngine is run on Java 8 or earlier.
+    
+### Version 2.12.0 - 2017-07-18 ###
+  * Added support to configure persistence via an optional [`@PersistenceConfig`](https://github.com/npgall/cqengine/blob/master/code/src/main/java/com/googlecode/cqengine/persistence/support/serialization/PersistenceConfig.java) annotation:
+    * `PersistenceConfig.polymorphic` - configures CQEngine to persist class name with serialized objects, to allow persisted collections to contain a mix of object types within an inheritance hierarchy.
+    * `PersistenceConfig.serializer` - allows to override the default serializer used by CQEngine.
+    * The serialzier is now decoupled from CQEngine internals and can be overridden via the mechanism above to suit some advaned use cases.
+  
+### Version 2.11.0 - 2017-06-30 ###
+  * Performance improvement. This version is backward compatible with 2.10.0. However note the following change in behavior.
+  * Updated disk and off-heap indexes to skip reinitialization (resyncing with the contents of the collection) at startup, if index tables already exist. 
+    * This should improve startup speed of IndexedCollections which are persisted to disk.
+    * The old behaviour can be reinstated by setting system property `cqengine.reinit.preexisting.indexes` = `true`.
+  * Enhanced `PojoSerializer.validateObjectIsRoundTripSerializable()` method to perform additional compatibility tests on POJOs.
+
+### Version 2.10.0 - 2017-06-07 ###
+  * Maintenance release. This version is backward compatible with 2.9.3 with the exception of the following packaging issue which affects users of the CQEngine shaded jar only.
+  * Fixed packaging issue in shaded jar which existed since CQEngine 2.8.0 (issue #144)
+    * If and only if, you were using the shaded version of CQEngine versions 2.8.0 thru 2.9.3, note that as of CQEngine 2.10.0 the package names of CQEngine’s own classes as provided in the shaded jar have now reverted from `com.googlecode.cqengine.lib.com.googlecode.cqengine` to `com.googlecode.cqengine`, to match the packaging in the regular/non-shaded jar. You will need to update import statements in your classes using CQEngine accordingly. No other code changes will be necessary.
+  * Updated dependency on SQLite to version 3.16.1 (issue #123)
+  * Added utility method for testing POJO compatibility with disk and off-heap persistence `PojoSerializer.validateObjectIsRoundTripSerializable()`
+
 ### Version 2.9.3 - 2017-03-02 ###
   * Maintenance release.
   * Updated the SQL grammar to allow NOT queries to be embedded in parentheses (Thanks to jarey for suggestions, issue #119).

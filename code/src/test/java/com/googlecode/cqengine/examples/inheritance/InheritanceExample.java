@@ -19,7 +19,6 @@ import com.googlecode.cqengine.ConcurrentIndexedCollection;
 import com.googlecode.cqengine.IndexedCollection;
 import com.googlecode.cqengine.attribute.Attribute;
 import com.googlecode.cqengine.attribute.SimpleAttribute;
-import com.googlecode.cqengine.examples.introduction.Car;
 import com.googlecode.cqengine.index.hash.HashIndex;
 import com.googlecode.cqengine.index.navigable.NavigableIndex;
 import com.googlecode.cqengine.index.suffix.SuffixTreeIndex;
@@ -52,9 +51,9 @@ public class InheritanceExample {
 
         // Add some objects to the collection...
         cars.add(new Car(1, "mazda 6", "great condition, low mileage", Arrays.asList("nitro boost", "sunroof")));
-        cars.add(new Car(3, "honda civic", "has a flat tyre and high mileage", Arrays.asList("radio")));
+        cars.add(new Car(2, "honda civic", "has a flat tyre and high mileage", Arrays.asList("radio")));
         cars.add(new SportsCar(3, "mazda mx-5", "red and sporty", Arrays.asList("radio"), 9000));
-        cars.add(new SportsCar(3, "porsche 911", "really fast", Arrays.asList("cd player"), 10000));
+        cars.add(new SportsCar(4, "porsche 911", "really fast", Arrays.asList("cd player"), 10000));
 
         System.out.println("Cars which have nitro boost or have a horsepower attribute:- ");
         Query<Car> carsWithNitroBoostOrAHorsepowerAttribute = or(
