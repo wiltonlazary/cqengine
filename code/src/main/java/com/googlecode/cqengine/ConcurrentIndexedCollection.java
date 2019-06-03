@@ -98,6 +98,14 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
         this.indexEngine = queryEngine;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Persistence<O, ?> getPersistence() {
+        return persistence;
+    }
+
     // ----------- Query Engine Methods -------------
 
     /**
@@ -105,16 +113,7 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
      */
     @Override
     public ResultSet<O> retrieve(Query<O> query) {
-        final QueryOptions queryOptions = openRequestScopeResourcesIfNecessary(null);
-        flagAsReadRequest(queryOptions);
-        ResultSet<O> results = indexEngine.retrieve(query, queryOptions);
-        return new CloseableResultSet<O>(results, query, queryOptions) {
-            @Override
-            public void close() {
-                super.close();
-                closeRequestScopeResourcesIfNecessary(queryOptions);
-            }
-        };
+        return retrieve(query, null);
     }
 
     /**
@@ -122,14 +121,14 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
      */
     @Override
     public ResultSet<O> retrieve(Query<O> query, QueryOptions queryOptions) {
-        final QueryOptions queryOptionsOpened = openRequestScopeResourcesIfNecessary(queryOptions);
-        flagAsReadRequest(queryOptionsOpened);
-        ResultSet<O> results = indexEngine.retrieve(query, queryOptions);
-        return new CloseableResultSet<O>(results, query, queryOptions) {
+        final QueryOptions finalQueryOptions = openRequestScopeResourcesIfNecessary(queryOptions);
+        flagAsReadRequest(finalQueryOptions);
+        ResultSet<O> results = indexEngine.retrieve(query, finalQueryOptions);
+        return new CloseableResultSet<O>(results, query, finalQueryOptions) {
             @Override
             public void close() {
                 super.close();
-                closeRequestScopeResourcesIfNecessary(queryOptionsOpened);
+                closeRequestScopeResourcesIfNecessary(finalQueryOptions);
             }
         };
     }
@@ -139,13 +138,7 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
      */
     @Override
     public boolean update(Iterable<O> objectsToRemove, Iterable<O> objectsToAdd) {
-        QueryOptions queryOptions = openRequestScopeResourcesIfNecessary(null);
-        try {
-            return update(objectsToRemove, objectsToAdd, queryOptions);
-        }
-        finally {
-            closeRequestScopeResourcesIfNecessary(queryOptions);
-        }
+        return update(objectsToRemove, objectsToAdd, null);
     }
 
     /**
@@ -168,7 +161,15 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
      */
     @Override
     public void addIndex(Index<O> index) {
-        QueryOptions queryOptions = openRequestScopeResourcesIfNecessary(null);
+        addIndex(index, null);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addIndex(Index<O> index, QueryOptions queryOptions) {
+        queryOptions = openRequestScopeResourcesIfNecessary(queryOptions);
         try {
             indexEngine.addIndex(index, queryOptions);
         }
@@ -181,10 +182,18 @@ public class ConcurrentIndexedCollection<O> implements IndexedCollection<O> {
      * {@inheritDoc}
      */
     @Override
-    public void addIndex(Index<O> index, QueryOptions queryOptions) {
+    public void removeIndex(Index<O> index) {
+        removeIndex(index, null);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void removeIndex(Index<O> index, QueryOptions queryOptions) {
         queryOptions = openRequestScopeResourcesIfNecessary(queryOptions);
         try {
-            indexEngine.addIndex(index, queryOptions);
+            indexEngine.removeIndex(index, queryOptions);
         }
         finally {
             closeRequestScopeResourcesIfNecessary(queryOptions);

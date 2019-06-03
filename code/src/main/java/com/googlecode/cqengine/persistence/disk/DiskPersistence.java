@@ -17,7 +17,6 @@ package com.googlecode.cqengine.persistence.disk;
 
 import com.googlecode.cqengine.attribute.SimpleAttribute;
 import com.googlecode.cqengine.index.Index;
-import com.googlecode.cqengine.index.disk.DiskIndex;
 import com.googlecode.cqengine.index.sqlite.ConnectionManager;
 import com.googlecode.cqengine.index.sqlite.RequestScopeConnectionManager;
 import com.googlecode.cqengine.index.sqlite.SQLitePersistence;
@@ -25,19 +24,25 @@ import com.googlecode.cqengine.index.sqlite.support.DBQueries;
 import com.googlecode.cqengine.index.sqlite.support.DBUtils;
 import com.googlecode.cqengine.index.support.indextype.DiskTypeIndex;
 import com.googlecode.cqengine.persistence.support.ObjectStore;
+import com.googlecode.cqengine.persistence.support.sqlite.LockReleasingConnection;
 import com.googlecode.cqengine.persistence.support.sqlite.SQLiteDiskIdentityIndex;
 import com.googlecode.cqengine.persistence.support.sqlite.SQLiteObjectStore;
 import com.googlecode.cqengine.query.option.QueryOptions;
 import org.sqlite.SQLiteConfig;
 import org.sqlite.SQLiteDataSource;
 
+import java.io.Closeable;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static com.googlecode.cqengine.persistence.support.PersistenceFlags.READ_REQUEST;
 import static com.googlecode.cqengine.query.QueryFactory.noQueryOptions;
+import static com.googlecode.cqengine.query.option.FlagsEnabled.isFlagEnabled;
 
 /**
  * Specifies that a collection or indexes should be persisted to a particular file on disk.
@@ -51,20 +56,67 @@ import static com.googlecode.cqengine.query.QueryFactory.noQueryOptions;
  * supplying <i>"override properties"</i> to the {@link #onPrimaryKeyInFileWithProperties(SimpleAttribute, File, Properties)}
  * method. As WAL mode is suitable for most applications, most applications should work best with the default settings;
  * the override support is intended for advanced or custom use cases.
+ * <p>
+ * Two other CQEngine-specific properties are also supported:
+ * <ul>
+ *     <li>
+ *         {@code shared_cache} = true|false (default is false)<br/>
+ *         This enables <a href="https://www.sqlite.org/sharedcache.html">SQLite Shared-Cache Mode</a>,
+ *         which can improve transaction throughput and reduce IO,
+ *         at the expense of supporting less write concurrency.
+ *     </li>
+ *     <li>
+ *         {@code persistent_connection} = true|false (default is false)<br/>
+ *         This causes the DiskPersistence to keep open an otherwise unused persistent connection
+ *         to the database file on disk. This prevents the file from being closed between
+ *         transactions, which can improve performance.<br/>
+ *         This will be enabled automatically if {@code shared_cache} is enabled
+ *         because it is a requirement for that feature to work.
+ *         This might be beneficial to enable on its own even without {@code shared_cache} in some
+ *         applications, but the benefit without {@code shared_cache} could to be quite marginal.<br/>
+ *         When {@code persistent_connection} = true, it is recommended (although not mandatory)
+ *         to call {@link #close()} when the application is finished using the collection;
+ *         in order to close the persistent connection. Otherwise the persistent connection will only
+ *         be closed when this object is garbage collected.
+ *     </li>
+ *     <li>
+ *         {@code use_read_write_lock} = true|false (default is true)<br/>
+ *         This is enabled by default but used only when {@code shared_cache} is enabled.
+ *         This causes a read-write lock to be used to guard access to the shared cache.
+ *         The shared-cache mode supports less concurrency than the non-shared cache mode,
+ *         and leaving this enabled can prevent exceptions being thrown due to attempts to
+ *         write concurrently.
+ *     </li>
+ * </ul>
+ * </p>
  *
  * @author niall.gallagher
  */
-public class DiskPersistence<O, A extends Comparable<A>> implements SQLitePersistence<O, A> {
+public class DiskPersistence<O, A extends Comparable<A>> implements SQLitePersistence<O, A>, Closeable {
 
     final SimpleAttribute<O, A> primaryKeyAttribute;
     final File file;
     final SQLiteDataSource sqLiteDataSource;
+    final boolean useReadWriteLock;
+
+    // Read-write lock is only used in shared-cache mode...
+    final ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
 
     static final Properties DEFAULT_PROPERTIES = new Properties();
     static {
-        DEFAULT_PROPERTIES.setProperty("busy_timeout", String.valueOf(Integer.MAX_VALUE)); // wait indefinitely to acquire locks (technically 68 years)
+        DEFAULT_PROPERTIES.setProperty("busy_timeout", String.valueOf(Integer.MAX_VALUE)); // Wait indefinitely to acquire locks (technically 68 years)
         DEFAULT_PROPERTIES.setProperty("journal_mode", "WAL"); // Use Write-Ahead-Logging which supports concurrent reads and writes
+        DEFAULT_PROPERTIES.setProperty("synchronous", "NORMAL"); // Setting synchronous to normal is safe and faster when using WAL
+
+        DEFAULT_PROPERTIES.setProperty("shared_cache", "false"); // Improves transaction throughput and reduces IO, at the expense of supporting less write concurrency
+        DEFAULT_PROPERTIES.setProperty("persistent_connection", "false"); // Prevents the database file from being closed between transactions
     }
+
+    // If persistent_connection=true, this will be a connection which we keep open to prevent SQLite
+    // from closing the database file until this object is garbage-collected,
+    // or close() is called explicitly on this object...
+    volatile Connection persistentConnection;
+    volatile boolean closed = false;
 
     protected DiskPersistence(SimpleAttribute<O, A> primaryKeyAttribute, File file, Properties overrideProperties) {
         Properties effectiveProperties = new Properties();
@@ -77,6 +129,25 @@ public class DiskPersistence<O, A extends Comparable<A>> implements SQLitePersis
         this.primaryKeyAttribute = primaryKeyAttribute;
         this.file = file.getAbsoluteFile();
         this.sqLiteDataSource = sqLiteDataSource;
+
+        boolean openPersistentConnection = "true".equals(effectiveProperties.getProperty("persistent_connection")); //default false
+        boolean useSharedCache = "true".equals(effectiveProperties.getProperty("shared_cache")); // default false
+        boolean useReadWriteLock = !"false".equals(effectiveProperties.getProperty("use_read_write_lock")); // default true
+        if (useSharedCache) {
+            // If shared_cache mode is enabled, by default we also use a read-write lock,
+            // unless using the read-write lock has been explicitly disabled...
+            sqLiteDataSource.setUrl("jdbc:sqlite:file:" + file + "?cache=shared");
+            this.useReadWriteLock = useReadWriteLock;
+        }
+        else {
+            // If we are not using shared_cache mode, we never use a read-write lock...
+            sqLiteDataSource.setUrl("jdbc:sqlite:file:" + file);
+            this.useReadWriteLock = false;
+        }
+        if (useSharedCache || openPersistentConnection) {
+            // If shared_cache is enabled, we always open a persistent connection regardless...
+            this.persistentConnection = getConnectionWithoutRWLock(null, noQueryOptions());
+        }
     }
 
     @Override
@@ -90,6 +161,32 @@ public class DiskPersistence<O, A extends Comparable<A>> implements SQLitePersis
 
     @Override
     public Connection getConnection(Index<?> index, QueryOptions queryOptions) {
+        return useReadWriteLock
+                ? getConnectionWithRWLock(index, queryOptions)
+                : getConnectionWithoutRWLock(index, queryOptions);
+    }
+
+    protected Connection getConnectionWithRWLock(Index<?> index, QueryOptions queryOptions) {
+        // Acquire a read lock IFF the READ_REQUEST flag has been set, otherwise acquire a write lock by default...
+        final Lock connectionLock = isFlagEnabled(queryOptions, READ_REQUEST)
+                                        ? readWriteLock.readLock() : readWriteLock.writeLock();
+
+        connectionLock.lock();
+        Connection connection;
+        try {
+            connection = getConnectionWithoutRWLock(index, queryOptions);
+        }
+        catch (RuntimeException e) {
+            connectionLock.unlock();
+            throw e;
+        }
+        return LockReleasingConnection.wrap(connection, connectionLock);
+    }
+
+    protected Connection getConnectionWithoutRWLock(Index<?> index, QueryOptions queryOptions) {
+        if (closed) {
+            throw new IllegalStateException("DiskPersistence has been closed: " + this.toString());
+        }
         try {
             return sqLiteDataSource.getConnection();
         }
@@ -105,6 +202,27 @@ public class DiskPersistence<O, A extends Comparable<A>> implements SQLitePersis
     @Override
     public boolean supportsIndex(Index<O> index) {
         return index instanceof DiskTypeIndex;
+    }
+
+    /**
+     * Closes the persistent connection, if there is an open persistent connection.
+     * After calling this, the DiskPersistence can no longer be used, and attempts to do
+     * so will result in {@link IllegalStateException}s being thrown.
+     */
+    @Override
+    public void close() {
+        DBUtils.closeQuietly(persistentConnection);
+        this.persistentConnection = null;
+        this.closed = true;
+    }
+
+    /**
+     * Finalizer which automatically calls {@link #close()} when this object is garbage collected.
+]     */
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        close();
     }
 
     @Override

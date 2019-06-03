@@ -1,5 +1,28 @@
 # CQEngine Release Notes #
 
+## Version 3.3.0 - 2019-05-18 ###
+  * Added `IndexedCollection.removeIndex()` method, which allows to remove/drop indexes from the collection (resolves issue #208).
+  * Added support in `AttributeBytecodeGenerator` to auto-generate attributes with human-readable names from getter methods (resolves issue #181).
+  * Fixed handling of escaped quotes in SQL queries (resolves issue #207).
+  * Updated SQL grammar to allow negative numbers in SQL queries (resolves issue #213).
+  * Added `IndexedCollection.getPersistence()` method (resolves issue #226).
+  * Updated `shared_cache` mode of `DiskPersistence`, to use a read-write lock by default. This should prevent exceptions being thrown when concurrent write operations cannot be supported by the SQLite shared cache (can be disabled via properties).
+
+## Version 3.2.0 - 2019-04-28 ###
+  * CQEngine is now compatible with Java 11 (Java 8, 9, 10, 11).
+  * This release is practically identical to 3.1.0, except CQEngine's own dependencies are upgraded to versions which are now all compatible with Java 11.
+
+## Version 3.1.0 - 2019-04-28 ###
+  * Improved concurrency support in CQEngine DiskPersistence
+    * This resolves issue 227 via pull request 229.
+    * Many thanks to @jayaramcs and @codingchili for help, and to @codingchili for the Pull Request.
+  * CQEngine operates SQLite in WAL mode by default, and this release changes the default sync mode from FULL to NORMAL. For more details see: https://www.sqlite.org/wal.html
+    * Applications requiring the old setting (i.e. sync mode FULL) can override this setting via properties, see documentation in class DiskPersistence for details.
+  * This release also includes an additional (optional) feature to use the Shared-Cache Mode in SQLite for DiskPersistence. For more details see: https://www.sqlite.org/sharedcache.html
+    * Shared-Cache Mode can significantly improve throughput (especially read throughput) and reduce latency for DiskPersistence. However it supports less concurrency for writes, and so it is not enabled by default. The benefit may be application-dependent.
+    * Applications wishing to improve read throughput and reduce read latency when using DiskPersistence, could experiment with that setting. It can be enabled by configuring a property. See documentation in class DiskPersistence for details.
+ 
+
 ## Version 3.0.0 - 2018-09-15 ###
   * CQEngine is now officially compatible with Java 8, 9 & 10; and is no longer compatible with Java 6 & 7.
   * CQEngine now has tighter integration with Java 8+ streams:
