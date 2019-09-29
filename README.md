@@ -360,6 +360,8 @@ Store the collection in native memory, within the JVM process but outside the Ja
 IndexedCollection<Car> cars = new ConcurrentIndexedCollection<Car>(OffHeapPersistence.onPrimaryKey(Car.CAR_ID));
 ```
 
+Note that the off-heap persistence will automatically create an index on the specified primary key attribute, so there is no need to add an index on that attribute later.
+
 **Disk**
 
 Store the collection in a temp file on disk (then see `DiskPersistence.getFile()`):
@@ -370,6 +372,8 @@ Or, store the collection in a particular file on disk:
 ```java
 IndexedCollection<Car> cars = new ConcurrentIndexedCollection<Car>(DiskPersistence.onPrimaryKeyInFile(Car.CAR_ID, new File("cars.dat")));
 ```
+
+Note that the disk persistence will automatically create an index on the specified primary key attribute, so there is no need to add an index on that attribute later.
 
 **Wrapping**
 
@@ -523,7 +527,7 @@ CQEngine has been designed with support for grouping and aggregation in mind, bu
 
 CQEngine `ResultSet` can be converted into a Java 8 `Stream` by calling `ResultSet.stream()`.
 
-Note that Streams are **evaluated via filtering** and they do not avail of CQEngine indexes. So **for best performance, as much of the overall query as possible should be encapsulated in the CQEngine query**, as opposed to in lamba expressions in the stream. This combination would dramatically outperform a stream and lambda expression alone, which simply filtered the collection.
+Note that Streams are **evaluated via filtering** and they do not avail of CQEngine indexes. So **for best performance, as much of the overall query as possible should be encapsulated in the CQEngine query**, as opposed to in lambda expressions in the stream. This combination would dramatically outperform a stream and lambda expression alone, which simply filtered the collection.
 
 Here's how to transform a `ResultSet` into a `Stream`, to compute the distinct set of Colors of cars which match a CQEngine query.
 ```java
@@ -589,7 +593,7 @@ CQEngine should generally be compatible with other JVM languages besides Java to
 
 ## Project Status ##
 
-  * CQEngine 3.3.0 is the current release as of writing (May 2019), and is in Maven central
+  * CQEngine 3.4.0 is the current release as of writing (June 2019), and is in Maven central
   * A [ReleaseNotes](documentation/ReleaseNotes.md) page has been added to document changes between releases
   * API / JavaDocs are available [here](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/index.html)
 
