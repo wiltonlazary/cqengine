@@ -20,21 +20,21 @@ import com.googlecode.cqengine.attribute.SimpleAttribute;
 import com.googlecode.cqengine.attribute.StandingQueryAttribute;
 import com.googlecode.cqengine.index.AttributeIndex;
 import com.googlecode.cqengine.index.Index;
+import com.googlecode.cqengine.index.compound.CompoundIndex;
 import com.googlecode.cqengine.index.compound.support.CompoundValueTuple;
 import com.googlecode.cqengine.index.disk.DiskIndex;
 import com.googlecode.cqengine.index.disk.PartialDiskIndex;
+import com.googlecode.cqengine.index.hash.HashIndex;
+import com.googlecode.cqengine.index.navigable.NavigableIndex;
 import com.googlecode.cqengine.index.navigable.PartialNavigableIndex;
 import com.googlecode.cqengine.index.offheap.OffHeapIndex;
 import com.googlecode.cqengine.index.offheap.PartialOffHeapIndex;
-import com.googlecode.cqengine.index.standingquery.StandingQueryIndex;
-import com.googlecode.cqengine.index.support.AbstractMapBasedAttributeIndex;
-import com.googlecode.cqengine.index.compound.CompoundIndex;
-import com.googlecode.cqengine.index.hash.HashIndex;
-import com.googlecode.cqengine.index.navigable.NavigableIndex;
 import com.googlecode.cqengine.index.radix.RadixTreeIndex;
 import com.googlecode.cqengine.index.radixinverted.InvertedRadixTreeIndex;
 import com.googlecode.cqengine.index.radixreversed.ReversedRadixTreeIndex;
+import com.googlecode.cqengine.index.standingquery.StandingQueryIndex;
 import com.googlecode.cqengine.index.suffix.SuffixTreeIndex;
+import com.googlecode.cqengine.index.support.AbstractMapBasedAttributeIndex;
 import com.googlecode.cqengine.index.support.indextype.DiskTypeIndex;
 import com.googlecode.cqengine.index.support.indextype.OffHeapTypeIndex;
 import com.googlecode.cqengine.index.unique.UniqueIndex;
@@ -90,7 +90,7 @@ public class IndexedCollectionFunctionalTest {
 
     static final boolean RUN_HIGH_PRIORITY_SCENARIOS_ONLY = false;
 
-    // Print progress of functional tests to the console at this frequncy...
+    // Print progress of functional tests to the console at this frequency...
     final int STATUS_UPDATE_FREQUENCY_MS = 1000;
     static long lastStatusTimestamp = 0L;
 
@@ -503,6 +503,13 @@ public class IndexedCollectionFunctionalTest {
                                 expectedResults = new ExpectedResults() {{
                                     size = 1000;
                                 }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = isPrefixOf(Car.MANUFACTURER, "BMW2");
+                                queryOptions = queryOptions(deduplicate(DeduplicationStrategy.MATERIALIZE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 100;
+                                }};
                             }}
                     );
                     indexCombinations = indexCombinations(
@@ -534,6 +541,100 @@ public class IndexedCollectionFunctionalTest {
                             indexCombination(DiskIndex.onAttribute(Car.FEATURES)),
                             indexCombination(DiskIndex.onAttribute(Car.MANUFACTURER)),
                             indexCombination(OffHeapIndex.onAttribute(Car.MANUFACTURER))
+                    );
+                }},
+                new MacroScenario() {{
+                    name = "comparative queries";
+                    dataSet = SMALL_DATASET;
+                    alsoEvaluateWithIndexMergeStrategy = false;
+                    collectionImplementations = classes(ConcurrentIndexedCollection.class);
+                    queriesToEvaluate = asList(
+                            new QueryToEvaluate() {{
+                                query = min(Car.PRICE); // will invoke Min.getMatchesForSimpleAttribute() for the noIndexes() scenario
+                                expectedResults = new ExpectedResults() {{
+                                    size = 1;
+                                    carIdsAnyOrder = asSet(4); // car with the lowest price
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = max(Car.PRICE); // will invoke Max.getMatchesForSimpleAttribute() for the noIndexes() scenario
+                                expectedResults = new ExpectedResults() {{
+                                    size = 1;
+                                    carIdsAnyOrder = asSet(9); // car with the highest price
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = min(Car.KEYWORDS); // will invoke Min.getMatchesForNonSimpleAttribute() for the noIndexes() scenario
+                                expectedResults = new ExpectedResults() {{
+                                    size = 2;
+                                    carIdsAnyOrder = asSet(2, 5); // cars with keyword "alpha"
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = max(Car.KEYWORDS);  // will invoke Max.getMatchesForNonSimpleAttribute() for the noIndexes() scenario
+                                expectedResults = new ExpectedResults() {{
+                                    size = 2;
+                                    carIdsAnyOrder = asSet(1, 9);  // cars with keyword "zulu"
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = longestPrefix(Car.KEYWORDS, "very-good-car-indeed");
+                                queryOptions = queryOptions(deduplicate(DeduplicationStrategy.MATERIALIZE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 2;
+                                    carIdsAnyOrder = asSet(6, 8); // cars with keyword "very-good-car" and not keyword "very-good"
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = longestPrefix(Car.MANUFACTURER, "Toyota2");
+                                queryOptions = queryOptions(deduplicate(DeduplicationStrategy.MATERIALIZE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 3;
+                                    carIdsAnyOrder = asSet(6, 7, 8);
+                                }};
+                            }},
+                            // Test comparative queries enclosed in logical queries...
+                            new QueryToEvaluate() {{
+                                query = and(all(Car.class), min(Car.PRICE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 1;
+                                    carIdsAnyOrder = asSet(4);
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = and(none(Car.class), min(Car.PRICE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 0;
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = or(none(Car.class), min(Car.PRICE));
+                                queryOptions = queryOptions(deduplicate(DeduplicationStrategy.MATERIALIZE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 1;
+                                    carIdsAnyOrder = asSet(4);
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = or(all(Car.class), min(Car.PRICE));
+                                queryOptions = queryOptions(deduplicate(DeduplicationStrategy.MATERIALIZE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 10;
+                                }};
+                            }},
+                            new QueryToEvaluate() {{
+                                query = not(min(Car.PRICE));
+                                expectedResults = new ExpectedResults() {{
+                                    size = 9;
+                                }};
+                            }}
+                    );
+                    indexCombinations = indexCombinations(
+                            noIndexes(),
+                            indexCombination(NavigableIndex.onAttribute(Car.PRICE)),
+                            indexCombination(NavigableIndex.onAttribute(Car.KEYWORDS)),
+                            indexCombination(InvertedRadixTreeIndex.onAttribute(Car.KEYWORDS))
+
                     );
                 }},
                 new MacroScenario() {{

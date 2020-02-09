@@ -18,6 +18,7 @@ package com.googlecode.cqengine.index.fallback;
 import com.googlecode.cqengine.index.Index;
 import com.googlecode.cqengine.persistence.support.ObjectSet;
 import com.googlecode.cqengine.persistence.support.ObjectStore;
+import com.googlecode.cqengine.query.ComparativeQuery;
 import com.googlecode.cqengine.query.Query;
 import com.googlecode.cqengine.query.option.QueryOptions;
 import com.googlecode.cqengine.query.simple.All;
@@ -25,7 +26,6 @@ import com.googlecode.cqengine.query.simple.None;
 import com.googlecode.cqengine.resultset.filter.FilteringIterator;
 import com.googlecode.cqengine.resultset.ResultSet;
 import com.googlecode.cqengine.resultset.iterator.IteratorUtil;
-import com.googlecode.cqengine.resultset.stored.StoredSetBasedResultSet;
 
 import java.util.*;
 
@@ -96,6 +96,7 @@ public class FallbackIndex<O> implements Index<O> {
     public ResultSet<O> retrieve(final Query<O> query, final QueryOptions queryOptions) {
         final ObjectSet<O> objectSet = ObjectSet.fromObjectStore(objectStore, queryOptions);
         return new ResultSet<O>() {
+            @SuppressWarnings("unchecked")
             @Override
             public Iterator<O> iterator() {
                 if (query instanceof All) {
@@ -103,6 +104,9 @@ public class FallbackIndex<O> implements Index<O> {
                 }
                 else if (query instanceof None) {
                     return Collections.<O>emptyList().iterator();
+                } 
+                else if (query instanceof ComparativeQuery) {
+                    return ((ComparativeQuery<O, ?>)query).getMatches(objectSet, queryOptions).iterator();
                 }
                 else {
                     return new FilteringIterator<O>(objectSet.iterator(), queryOptions) {
@@ -125,7 +129,7 @@ public class FallbackIndex<O> implements Index<O> {
             }
             @Override
             public boolean matches(O object) {
-                return query.matches(object, queryOptions);
+                return query instanceof ComparativeQuery ? contains(object) : query.matches(object, queryOptions);
             }
             @Override
             public int getRetrievalCost() {

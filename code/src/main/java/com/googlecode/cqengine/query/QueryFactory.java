@@ -20,6 +20,9 @@ import com.googlecode.cqengine.attribute.*;
 import com.googlecode.cqengine.attribute.support.*;
 import com.googlecode.cqengine.entity.MapEntity;
 import com.googlecode.cqengine.entity.PrimaryKeyedMapEntity;
+import com.googlecode.cqengine.query.comparative.LongestPrefix;
+import com.googlecode.cqengine.query.comparative.Max;
+import com.googlecode.cqengine.query.comparative.Min;
 import com.googlecode.cqengine.query.logical.And;
 import com.googlecode.cqengine.query.logical.Not;
 import com.googlecode.cqengine.query.logical.Or;
@@ -212,7 +215,56 @@ public class QueryFactory {
     public static <O, A extends CharSequence> StringStartsWith<O, A> startsWith(Attribute<O, A> attribute, A attributeValue) {
         return new StringStartsWith<O, A>(attribute, attributeValue);
     }
+    
+    /**
+     * Creates a {@link LongestPrefix} query which finds the object with the longest matching prefix.
+     * 
+     * @param attribute The attribute to which the query refers
+     * @param attributeValue The value to be asserted by the query
+     * @param <A> The type of the attribute
+     * @param <O> The type of the object containing the attribute
+     * @return A {@link LongestPrefix} query
+     */
+    public static <O, A extends CharSequence> LongestPrefix<O, A> longestPrefix(Attribute<O, A> attribute, A attributeValue) {
+        return new LongestPrefix<>(attribute, attributeValue);
+    }
 
+    /**
+     * Creates a {@link Min} query which finds the object(s) which have the minimum value of the given attribute.
+     *
+     * @param attribute The attribute to which the query refers
+     * @param <A> The type of the attribute
+     * @param <O> The type of the object containing the attribute
+     * @return A {@link Min} query
+     */
+    public static <O, A extends Comparable<A>> Min<O, A> min(Attribute<O, A> attribute) {
+        return new Min<>(attribute);
+    }
+
+    /**
+     * Creates a {@link Max} query which finds the object(s) which have the maximum value of the given attribute.
+     *
+     * @param attribute The attribute to which the query refers
+     * @param <A> The type of the attribute
+     * @param <O> The type of the object containing the attribute
+     * @return A {@link Max} query
+     */
+    public static <O, A extends Comparable<A>> Max<O, A> max(Attribute<O, A> attribute) {
+        return new Max<>(attribute);
+    }
+
+    /**
+     * Creates a {@link StringIsPrefixOf} query which finds all attributes that are prefixes of a certain string
+     * 
+     * @param attribute The attribute to which the query refers
+     * @param attributeValue The value to be asserted by the query
+     * @param <A> The type of the attribute
+     * @param <O> The type of the object containing the attribute
+     * @return An {@link StringIsPrefixOf} query
+     */
+    public static <O, A extends CharSequence> StringIsPrefixOf<O, A> isPrefixOf(Attribute<O, A> attribute, A attributeValue) {
+        return new StringIsPrefixOf<>(attribute, attributeValue);
+    }
     /**
      * Creates a {@link StringEndsWith} query which asserts that an attribute ends with a certain string fragment.
      *
