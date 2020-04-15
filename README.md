@@ -548,6 +548,23 @@ public static void main(String[] args) {
 
 ---
 
+## Accessing Index Metadata and Statistics from MetadataEngine ##
+
+The [MetadataEngine](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/com/googlecode/cqengine/metadata/MetadataEngine.html), is a high-level API which can retrieve metatadata and statistics from indexes which have been added to the collection.
+
+It provides access to the following:
+  * Frequency distributions (the counts of each attribute value stored in an index)
+  * Distinct keys (the distinct attribute values in an index)
+  * Distinct keys within a range (the distinct attribute values in an index, between x and y)
+  * Streams of attribute values and associated objects stored in an index (ascending/descending order)
+  * Streams of attribute values and associated objects stored in an index, between attribute values x and y
+  * Count of distinct keys (how many distinct attribute values are in an index)
+  * Count for a specific key (how many objects match a specific attribute value)
+
+For more information, see JavaDocs for: [MetadataEngine](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/com/googlecode/cqengine/metadata/MetadataEngine.html), [AttributeMetadata](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/com/googlecode/cqengine/metadata/AttributeMetadata.html), [SortedAttributeMetadata](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/com/googlecode/cqengine/metadata/SortedAttributeMetadata.html)
+
+---
+
 
 ## Using CQEngine with Hibernate / JPA / ORM Frameworks ##
 
@@ -594,7 +611,7 @@ CQEngine should generally be compatible with other JVM languages besides Java to
 
 ## Project Status ##
 
-  * CQEngine 3.4.0 is the current release as of writing (June 2019), and is in Maven central
+  * CQEngine 3.5.0 is the current release as of writing (March 2020), and is in Maven central
   * A [ReleaseNotes](documentation/ReleaseNotes.md) page has been added to document changes between releases
   * API / JavaDocs are available [here](http://htmlpreview.github.io/?http://raw.githubusercontent.com/npgall/cqengine/master/documentation/javadoc/apidocs/index.html)
 
